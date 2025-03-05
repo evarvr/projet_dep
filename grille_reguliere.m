@@ -7,7 +7,7 @@ global texp xexp tref xref E0 Es0 Ed0 tsw Itsw xsw kd modele k1F k1B k2F k2B k3F
 
 
 % Initialisation du programme
-modele = 'bbpp'; % Choix du modèle
+modele = 'bbo'; % Choix du modèle
 E0 = 10;         % E0 fixé
 Es0 = 0.61 * E0; % Valeur dérivée d'E0
 Ed0 = 0.39 * E0; % Valeur dérivée d'E0
@@ -30,13 +30,13 @@ disp('Dimensions des données expérimentales :');
 disp(size(xexp));
 
 % Définir les plages des paramètres à optimiser pour k1F et k1B uniquement
-k1F_values = linspace(1000, 100000, 3);  
-k1B_values = linspace(1000, 10000, 3); 
-k2F_values = linspace(0.1,10, 3);
-k2B_values = linspace(100,1000, 3);
-k3F_values = linspace(1,1000, 3);
-k3B_values = linspace(10,1000, 3);
-k4_values  = linspace(1,1000, 3);
+k1F_values = linspace(0.01, 5000, 4);  
+k1B_values = linspace(0.01, 5000, 4); 
+k2F_values = linspace(0.01,5000, 4);
+k2B_values = linspace(0.01,5000, 4);
+k3F_values = linspace(0.01,5000, 4);
+k3B_values = linspace(0.01,5000, 4);
+k4_values  = linspace(0.01,5000, 4);
 
 % Initialisation des variables pour stocker les résultats
 best_params = [NaN, NaN]; % Initialisation avec des valeurs NaN
@@ -44,6 +44,7 @@ best_error = inf;  % Erreur initiale très élevée
 
 % Boucle sur les combinaisons des valeurs de k1F et k1B
 iteration = 0;
+error_list = []; % Initialiser la liste des erreurs
 for k1F = k1F_values(:)'
     for k1B = k1B_values(:)'
         for k2F=k2F_values(:)'
@@ -52,7 +53,7 @@ for k1F = k1F_values(:)'
                     for k3B=k3B_values(:)'
                         for k4=k4_values(:)'
                             error = simulate_and_evaluate(E0, texp, xexp, k1F, k1B, k2F, k2B, k3F, k3B, k4);
-                            %fprintf('k1F: %.4f, k1B: %.4f, Erreur: %.4f\n', k1F, k1B, error);
+                            error_list = [error_list; error];
                             iteration = iteration + 1;
                             if error < best_error
                                 best_error = error;
@@ -80,41 +81,35 @@ toc; % fin de la mesure du temps
 
 % Fonction de simulation et évaluation
 function error = simulate_and_evaluate(E0, texp, xexp, k1F, k1B, k2F, k2B, k3F, k3B, k4)
-    %global texp xexp tref xref E0 Es0 Ed0 tsw Itsw xsw kd modele k1F k1B k2F k2B k3F k3B k4 numfich
-    
 
-    % Appel du simulateur (en tant que script)
-    run('Simulateur.m');  
-    
-    % Vérification de l'existence des données simulées
-    if exist('x1', 'var') && ~isempty(x1)
-        % Transposer si nécessaire pour avoir les lignes comme dimension temporelle
-        if size(x1, 2) > size(x1, 1)
-            x1 = x1';
-        end
+    % Appel du simulateur (Simulateur.m)
+    run('Simulateur.m');
 
-        % Création d'un vecteur de temps pour les données simulées
-        t_sim = linspace(min(texp), max(texp), size(x1, 1));
-
-        % Interpoler les données simulées aux points temporels des données expérimentales
-        x1_interp = interp1(t_sim, x1, texp, 'linear', 'extrap');
-
-        % Réduction pour correspondre à xexp en utilisant les 5 premières colonnes
-        x1_interp = x1_interp(:, 1:size(xexp, 2));
-
-        % Calcul de l'erreur si les dimensions sont compatibles
-        if size(xexp, 2) == size(x1_interp, 2)
-            error = sum((xexp - x1_interp).^2, 'all');  % Erreur totale sur tous les points expérimentaux
-        else
-            error = inf;  % Dimensions incompatibles, attribuer une grande erreur
-            fprintf('Incompatibilité de colonnes entre xexp et x1_interp, erreur assignée à inf.\n');
-        end
+    % Si le simulateur renvoie J1opt directement, utiliser cette valeur comme erreur
+    if exist('J1opt', 'var') && ~isempty(J1opt)
+        error = J1opt; % Utiliser l'erreur globale calculée par le simulateur
     else
-        error = inf;  % Si x1 est vide ou non défini, attribuer une grande erreur
-        fprintf('x1 n''existe pas ou est vide, erreur assignée à inf.\n');
+        % Si J1opt n'est pas défini, attribuer une erreur infinie
+        error = inf;
+        fprintf('J1opt n''est pas défini ou est vide. Erreur assignée à inf.\n');
     end
 end
 
 
+% Calculer la somme des données expérimentales pour normalisation
+sum_exp = sum(xexp(:));
+
+% Calculer l'erreur relative
+relative_error = best_error / sum_exp;
+
+% Afficher l'erreur relative pour mieux comprendre
+fprintf('Erreur relative : %.4f (ou %.2f%%)\n', relative_error, relative_error * 100);
+
+%figure;
+%plot(1:length(error_list), error_list, '-o', 'LineWidth', 1.5);
+%xlabel('Itérations');
+%ylabel('Erreur');
+%title('Évolution de l''erreur au fil des itérations');
+%grid on;
 
 
